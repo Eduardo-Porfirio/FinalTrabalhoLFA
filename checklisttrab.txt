@@ -1,0 +1,11 @@
+### Checklist
+
+    [x]     - Estrutura do automato
+    [x]     - Carregamento do arquivo de tokens/gramatica
+    [x]     - Função de carregador
+    [x]     - Construção da função que vai criar o automato AFDN 
+    []      - Determinização do automato (AFDN -> AFD)
+    []      - Minimização do automato:
+                1 - remoção de estados inalcançaveis
+                2 - Sem estados mortos
+                3 - Não possuir estados equivalentes
