@@ -11,6 +11,11 @@ ROTULO_ERRO = "erro"
 REGRA_GR = re.compile(r"^<([^<>]+)>\s*::=\s*(.*)$")
 PRODUCAO = re.compile(r"^(.*?)(?:<([^<>]+)>)?$")
 
+
+########################
+## Classe do automato ##
+########################
+
 class AF:
     """Autômato finito (determinístico ou não).
 
@@ -137,10 +142,44 @@ def encontra_alcancavel(afd) -> set:
                     visitados.add(ds)
     return visitados
 
-def gera_novo_soalcancaveis(afd, alcancaveis) -> AF:
-    print("removendo inalcancaveis")
-    return 
+def restringir(af, manter):
+    novo = af.copia_vazia()
+    novo.inicial = af.inicial
+    for estado in af.estados:
+        if estado not in manter:
+            continue
+        novo.add_estado(estado)
+        for simbolo, destinos in af.transicoes[estado].items():
+            for destino in destinos:
+                if destino in manter:
+                    novo.add_transicao(estado, simbolo, destino)
+        for rotulo in af.finais.get(estado, []):
+            novo.add_final(estado, rotulo)
+    novo.alfabeto = list(af.alfabeto)
+    return novo
 
+def vivos(af):
+    """Estados a partir dos quais algum estado final é alcançável."""
+    vivos_ = set(af.finais)
+    mudou = True
+    while mudou:
+        mudou = False
+        for estado in af.estados:
+            if estado in vivos_:
+                continue
+            if any(d in vivos_ for ds in af.transicoes[estado].values() for d in ds):
+                vivos_.add(estado)
+                mudou = True
+    return vivos_
+
+
+def remover_inalcancaveis(af):
+    manter = encontra_alcancavel(af)
+    return restringir(af, manter), [e for e in af.estados if e not in manter]
+
+def remover_mortos(af):
+    manter = vivos(af) | {af.inicial}  # o inicial nunca é removido
+    return restringir(af, manter), [e for e in af.estados if e not in manter]
 
 def gerador_nomes(reservados):
     """A, B, ..., Z, AA, AB, ... pulando nomes reservados (S, ERR)."""
@@ -161,6 +200,26 @@ def gerador_nomes(reservados):
                 break
             indices[pos] += 1
         tamanho += 1
+
+###########################################
+## Funcao que adiciona o estado de erro  ##
+###########################################
+
+def adicionar_estado_erro(af):
+    novo = restringir(af, set(af.estados))
+    novo.add_estado(ESTADO_ERRO)
+    novo.add_final(ESTADO_ERRO, ROTULO_ERRO)
+    novo.prioridade.setdefault(ROTULO_ERRO, len(novo.prioridade))
+    for estado in novo.estados:
+        for simbolo in novo.alfabeto:
+            if not novo.transicoes[estado].get(simbolo):
+                novo.add_transicao(estado, simbolo, ESTADO_ERRO)
+    return novo
+
+
+############################################
+## Funcao que vai criar e devolver o AFND ##
+############################################
 
 def carregar(texto):
     """Lê o conteúdo do arquivo de entrada e devolve o AFND.
@@ -339,7 +398,22 @@ def main(argv=None):
     # print(args)
     with open(args.entrada, encoding="utf-8") as f:
         texto = f.read()
-        afnd = carregar(texto)
+
+    afnd = carregar(texto)
+    print("=== AFND (carga) ===\n" + tabela(afnd) + "\n")
+    afd = determinizar(afnd)
+    print("=== AFD (determinização) ===\n" + tabela(afd) + "\n")
+    afd, removidos = remover_inalcancaveis(afd)
+    print("=== Sem inalcançáveis ===  removidos:", removidos or "nenhum")
+    print(tabela(afd) + "\n")
+    afd, removidos = remover_mortos(afd)
+    print("=== Sem mortos ===  removidos:", removidos or "nenhum")
+    print(tabela(afd) + "\n")
+    afd = adicionar_estado_erro(afd)
+    print("=== AFD final (com estado de erro) ===\n" + tabela(afd))
+    print("\nEstados finais:\n" + descrever_finais(afd))
+
+        #afnd = carregar(texto)
         #print("prioridade: ", afnd.prioridade)
         #print("Alfabeto: ", afnd.alfabeto)
         #print("Estados: ",afnd.estados)
@@ -351,10 +425,8 @@ def main(argv=None):
         #   print(e, "->", sorted(fecho(afnd, {e})))
         #print(repr(nome_conjunto(frozenset({'S', 'A', 'B'}), afnd)))
         #print(repr(nome_conjunto(frozenset({'S'}), afnd)))
-        print("Testando a funcao de determinazacao\n")
-        afd = determinizar(afnd)
-        print(tabela(afd))
-        print("testando a funcao que retorna os alcançaveis")
-        alcancaveis = encontra_alcancavel(afd)
-        print()
+        #print("Testando a funcao de determinazacao\n")
+        #afd = determinizar(afnd)
+        #print(tabela(afd))
+
 main()
